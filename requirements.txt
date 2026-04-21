@@ -1,0 +1,8 @@
+streamlit
+pandas
+webuntis
+python-dotenv
+pyotp
+requests
+opencv-python-headless
+Pillow
