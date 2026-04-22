@@ -652,6 +652,21 @@ else:
                 day_df = pd.DataFrame(day_stats)
                 st.subheader("Cancelled by Day")
                 st.bar_chart(day_df.set_index("Day")["Cancelled"])
+                
+                # Chart: Cancelled by Year
+                year_stats = []
+                for year in all_years:
+                    year_cancelled = sum(s['by_year'].get(year, {}).get('absent', 0) for s in filtered_stats.values())
+                    year_total = sum(s['by_year'].get(year, {}).get('total', 0) for s in filtered_stats.values())
+                    if year_total > 0:
+                        year_stats.append({
+                            "Year": year,
+                            "Cancelled": year_cancelled
+                        })
+                year_df = pd.DataFrame(year_stats)
+                if len(year_df) > 0:
+                    st.subheader("Cancelled by Year")
+                    st.bar_chart(year_df.set_index("Year")["Cancelled"])
 
 # Footer
 st.markdown("---")
