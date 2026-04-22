@@ -546,6 +546,7 @@ else:
             value=26,
             help="Filter out teachers with fewer scheduled lessons"
         )
+        anonymous = st.checkbox("Anonymous Mode", value=False, help="Hide teacher names (show as Teacher 1, 2, etc.)")
         
         # Filter stats by year
         if selected_year == "All Years":
@@ -587,8 +588,13 @@ else:
             worst = max(range(5), key=lambda d: s['by_day'][d]['absent'])
             worst_name = ["Mon", "Tue", "Wed", "Thu", "Fri"][worst] if s['by_day'][worst]['absent'] else "N/A"
             
+            # Anonymize teacher name if checked
+            display_name = t
+            if anonymous:
+                display_name = f"Teacher {len(leaderboard) + 1}"
+            
             leaderboard.append({
-                "Teacher": t,
+                "Teacher": display_name,
                 "Cancelled": cancelled,
                 "Scheduled": total,
                 "Attendance %": round(pct, 1),
@@ -629,7 +635,11 @@ else:
             if len(df) > 0:
                 # Chart: Cancelled by teacher
                 st.subheader("Cancelled by Teacher")
-                st.bar_chart(df.head(15).set_index("Teacher")["Cancelled"])
+                chart_df = df.head(15)
+                if anonymous:
+                    chart_df = chart_df.copy()
+                    chart_df['Teacher'] = [f"Teacher {i+1}" for i in range(len(chart_df))]
+                st.bar_chart(chart_df.set_index("Teacher")["Cancelled"])
                 
                 # Chart: Cancelled by day
                 day_stats = []
