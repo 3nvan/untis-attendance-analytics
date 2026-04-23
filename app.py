@@ -83,6 +83,41 @@ if 'qr_scanned' not in st.session_state:
 # ============================================================================
 # HELPER FUNCTIONS
 # ============================================================================
+# SCHOOL SEARCH FUNCTION
+# ============================================================================
+
+def search_schools(query):
+    """Search for schools - returns list of (display, value) tuples."""
+    if not query or len(query) < 2:
+        return []
+    
+    query_lower = query.lower().strip()
+    
+    # Check cache
+    if query_lower in st.session_state.school_cache:
+        return st.session_state.school_cache[query_lower]
+    
+    # Since webuntis.com doesn't expose a public search API,
+    # we return suggestions based on user input pattern
+    # User can also manually enter Server URL below
+    suggestions = []
+    clean_query = query_lower.replace(' ', '-')
+    
+    # Suggest common patterns
+    suggestions.append((f"{query.title()}", clean_query))
+    if ' ' in query:
+        suggestions.append((f"{query.replace(' ', '')}", query.replace(' ', '')))
+    
+    # Add option to search on webuntis.com
+    suggestions.append(("🔍 Search on webuntis.com", "_webuntis_search_"))
+    
+    # Cache
+    st.session_state.school_cache[query_lower] = suggestions
+    return suggestions
+
+# ============================================================================
+# HELPER FUNCTIONS
+# ============================================================================
 
 def get_teacher_name(t_obj):
     """Extract display name from teacher object.
@@ -318,6 +353,26 @@ def analyze_mobile(server, school, username, secret):
 
 st.title("🏫 WebUntis Absence Analyzer")
 
+hour = datetime.datetime.now().hour
+if hour < 12:
+    greeting = "Good morning"
+elif hour < 17:
+    greeting = "Good afternoon"
+else:
+    greeting = "Good evening"
+
+if st.session_state.logged_in:
+    user_name = st.session_state.credentials.get('username', '')
+elif st.session_state.get('saved_username'):
+    user_name = st.session_state.saved_username
+else:
+    user_name = ''
+
+if user_name:
+    st.markdown(f"<span style='font-size:2em'><strong>{greeting}, {user_name}!</strong></span>", unsafe_allow_html=True)
+else:
+    st.markdown(f"<span style='font-size:2em'><strong>{greeting}!</strong></span>", unsafe_allow_html=True)
+
 # -------------------------------------------------------------------------
 # LOGIN SECTION
 # -------------------------------------------------------------------------
@@ -330,7 +385,7 @@ if not st.session_state.logged_in:
     
     server = school = username = password = qr = ""
     
-    # Username/Password form
+# Username/Password form
     if method == "Username/Password":
         c1, c2 = st.columns(2)
         with c1:
@@ -349,7 +404,6 @@ if not st.session_state.logged_in:
             "Username",
             value=st.session_state.saved_username
         )
-        # Password field (dots hidden, can still edit)
         password = st.text_input(
             "Password",
             type="password",
@@ -396,33 +450,77 @@ if not st.session_state.logged_in:
         with st.spinner("Logging in..."):
             try:
                 # -----------------------------------------------------------------
-                # USERNAME/PASSWORD LOGIN
-                # -----------------------------------------------------------------
                 if method == "Username/Password":
                     if not (server and school and username and password):
                         st.error("Fill all fields!")
                     else:
-                        # Clean server URL
                         s = server.replace("https://", "").replace("http://", "").split("/")[0]
                         
-                        # Login via standard WebUntis API
-                        with webuntis.Session(
-                            username=username,
-                            password=password,
-                            server=s,
-                            school=school,
-                            useragent='WebUntis'
-                        ) as sess:
-                            sess.login()
-                            st.session_state.credentials = {
-                                'server': s,
-                                'school': school,
-                                'username': username,
-                                'password': password
-                            }
-                            st.session_state.logged_in = True
-                            st.session_state.login_method = method
-                            st.rerun()
+                        success = False
+                        
+                        # Try standard login first
+                        try:
+                            with webuntis.Session(
+                                username=username,
+                                password=password,
+                                server=s,
+                                school=school,
+                                useragent='WebUntis'
+                            ) as sess:
+                                sess.login()
+                                st.session_state.credentials = {
+                                    'server': s,
+                                    'school': school,
+                                    'username': username,
+                                    'password': password
+                                }
+                                st.session_state.logged_in = True
+                                st.session_state.login_method = method
+                                st.rerun()
+                        except Exception as e:
+                            pass
+                        
+                        # If standard failed, try password as TOTP key
+                        if not st.session_state.get('logged_in'):
+                            try:
+                                totp = pyotp.TOTP(password)
+                                otp = totp.now()
+                                url = f"https://{s}/WebUntis/jsonrpc_intern.do"
+                                resp = requests.post(
+                                    url,
+                                    params={
+                                        'm': 'getUserData2017',
+                                        'school': school,
+                                        'v': 'i2.2'
+                                    },
+                                    json={
+                                        "id": "btw i use arch",
+                                        "method": "getUserData2017",
+                                        "params": [{
+                                            "auth": {
+                                                "user": username,
+                                                "otp": otp,
+                                                "clientTime": int(datetime.datetime.now().timestamp() * 1000)
+                                            }
+                                        }],
+                                        "jsonrpc": "2.0"
+                                    }
+                                )
+                                if resp.status_code == 200 and 'result' in resp.json():
+                                    st.session_state.credentials = {
+                                        'server': s,
+                                        'school': school,
+                                        'username': username,
+                                        'password': password
+                                    }
+                                    st.session_state.logged_in = True
+                                    st.session_state.login_method = method
+                                    st.rerun()
+                            except Exception as key_e:
+                                pass
+                        
+                        if not st.session_state.get('logged_in'):
+                            st.error("Invalid credentials (tried as password and as key)")
                 
                 # -----------------------------------------------------------------
                 # QR/KEY LOGIN  
@@ -495,9 +593,17 @@ if not st.session_state.logged_in:
 # -------------------------------------------------------------------------
 
 else:
-    # Sidebar with user info and logout
+    user_name = st.session_state.credentials['username']
+    hour = datetime.datetime.now().hour
+    if hour < 12:
+        greeting = "Good morning"
+    elif hour < 17:
+        greeting = "Good afternoon"
+    else:
+        greeting = "Good evening"
+    
     with st.sidebar:
-        st.markdown(f"**{st.session_state.credentials['username']}**")
+        st.markdown(f"**{greeting}, {user_name}**")
         st.caption(f"@ {st.session_state.credentials['school']}")
         if st.button("Logout"):
             st.session_state.logged_in = False
@@ -610,7 +716,7 @@ else:
             })
         
         df = pd.DataFrame(leaderboard)
-        df = df.sort_values("Cancelled", ascending=False)
+        df = df.sort_values(by=["Cancelled"], ascending=False).reset_index(drop=True)
         
         # Metrics
         c1, c2 = st.columns(2)
