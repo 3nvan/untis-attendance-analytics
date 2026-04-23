@@ -128,7 +128,8 @@ def _create_stats():
         'absent': 0,    # Total cancelled lessons
         'total': 0,     # Total scheduled lessons
         'by_day': defaultdict(lambda: {'absent': 0, 'total': 0}),
-        'by_year': defaultdict(lambda: {'absent': 0, 'total': 0})
+        'by_year': defaultdict(lambda: {'absent': 0, 'total': 0}),
+        'by_week': defaultdict(lambda: {'absent': 0, 'total': 0})
     }
 
 # ============================================================================
@@ -178,11 +179,14 @@ def analyze(session):
                     s['total'] += 1
                     s['by_day'][day]['total'] += 1
                     s['by_year'][sy.name]['total'] += 1
+                    week = p.start.isocalendar()[1]
+                    s['by_week'][week]['total'] += 1
                     
                     if is_cancelled:
                         s['absent'] += 1
                         s['by_day'][day]['absent'] += 1
                         s['by_year'][sy.name]['absent'] += 1
+                        s['by_week'][week]['absent'] += 1
         except Exception as e:
             st.warning(f"Error: {e}")
     
@@ -281,7 +285,9 @@ def analyze_mobile(server, school, username, secret):
                 continue
             
             is_cancelled = p.get('code') == 'cancelled'
-            day = parse_untis_date(p.get('date', '')).weekday()
+            date = parse_untis_date(p.get('date', ''))
+            day = date.weekday()
+            week = date.isocalendar()[1]
             
             teachers = []
             for te in p.get('teachers', []):
@@ -295,11 +301,13 @@ def analyze_mobile(server, school, username, secret):
                 s['total'] += 1
                 s['by_day'][day]['total'] += 1
                 s['by_year'][sy['name']]['total'] += 1
+                s['by_week'][week]['total'] += 1
                 
                 if is_cancelled:
                     s['absent'] += 1
                     s['by_day'][day]['absent'] += 1
                     s['by_year'][sy['name']]['absent'] += 1
+                    s['by_week'][week]['absent'] += 1
     
     return {t: s for t, s in stats.items() if s['total'] >= 10}
 
@@ -667,7 +675,22 @@ else:
                 if len(year_df) > 0:
                     st.subheader("Cancelled by Year")
                     st.bar_chart(year_df.set_index("Year")["Cancelled"])
+                
+                week_stats = []
+                for week in range(1, 53):
+                    week_absent = sum(s['by_week'].get(week, {}).get('absent', 0) for s in filtered_stats.values())
+                    week_total = sum(s['by_week'].get(week, {}).get('total', 0) for s in filtered_stats.values())
+                    if week_total > 0:
+                        week_stats.append({
+                            "Week": f"W{week}",
+                            "Cancelled": week_absent
+                        })
+                week_df = pd.DataFrame(week_stats)
+                if len(week_df) > 0:
+                    st.subheader("Cancelled by Week of Year")
+                    st.bar_chart(week_df.set_index("Week")["Cancelled"])
 
 # Footer
 st.markdown("---")
+st.caption("Made by **[3nvan](https://github.com/3nvan)** | **[View on GitHub](https://github.com/3nvan/untis-attendance-analytics)**")
 st.caption("**Disclaimer:** Educational use only. Not affiliated with Untis GmbH.")
