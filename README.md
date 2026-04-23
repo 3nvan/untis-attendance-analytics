@@ -5,6 +5,12 @@ A Streamlit web application that connects to the WebUntis API and analyzes teach
 ![Python](https://img.shields.io/badge/python-3.x-blue)
 ![Streamlit](https://img.shields.io/badge/Streamlit-red)
 
+## 🌐 Live Demo
+
+A live instance is available at [untis.dreaming.qzz.io](https://untis.dreaming.qzz.io)
+
+> Note: This instance may require valid WebUntis credentials to use.
+
 ## Features
 
 - **Interactive Web Dashboard** - Built with Streamlit
