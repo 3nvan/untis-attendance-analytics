@@ -443,11 +443,11 @@ if not st.session_state.logged_in:
                                 url,
                                 params={
                                     'm': 'getUserData2017',
-                                    'school': ch,
+                                    'school': sch,
                                     'v': 'i2.2'
                                 },
                                 json={
-                                    "id": "Awesome",
+"id": "btw i use arch",
                                     "method": "getUserData2017",
                                     "params": [{
                                         "auth": {
@@ -465,7 +465,7 @@ if not st.session_state.logged_in:
                                 if 'result' in data:
                                     st.session_state.credentials = {
                                         'server': srv,
-                                        'school': ch,
+                                        'school': sch,
                                         'username': user,
                                         'password': key
                                     }
