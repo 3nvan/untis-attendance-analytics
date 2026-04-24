@@ -79,6 +79,12 @@ if 'saved_password' not in st.session_state:
     st.session_state.saved_password = os.getenv('UNTIS_PASSWORD', '')
 if 'qr_scanned' not in st.session_state:
     st.session_state.qr_scanned = None
+if 'save_credentials' not in st.session_state:
+    st.session_state.save_credentials = os.getenv('SAVE', '').lower() == 'yes'
+
+# School cache for search suggestions
+if 'school_cache' not in st.session_state:
+    st.session_state.school_cache = {}
 
 # ============================================================================
 # HELPER FUNCTIONS
@@ -166,6 +172,40 @@ def _create_stats():
         'by_year': defaultdict(lambda: {'absent': 0, 'total': 0}),
         'by_week': defaultdict(lambda: {'absent': 0, 'total': 0})
     }
+
+
+def save_credentials_to_env(server, school, username, password):
+    """Save credentials to credentials file."""
+    creds_file = os.path.join(os.path.dirname(__file__), 'credentials.txt')
+    
+    existing = {}
+    if os.path.exists(creds_file):
+        import configparser
+        cp = configparser.ConfigParser()
+        cp.read(creds_file)
+        for section in cp.sections():
+            existing[section] = dict(cp.items(section))
+            if existing[section].get('username') == username and existing[section].get('server') == server:
+                return
+    
+    for sec, opts in existing.items():
+        if opts.get('username') == username and opts.get('server') == server:
+            return
+    
+    section = f"user{len(existing) + 1}"
+    existing[section] = {
+        'server': server,
+        'school': school,
+        'username': username,
+        'password': password
+    }
+    
+    with open(creds_file, 'w') as f:
+        for sec, opts in existing.items():
+            f.write(f"[{sec}]\n")
+            for k, v in opts.items():
+                f.write(f"{k}={v}\n")
+            f.write("\n")
 
 # ============================================================================
 # ANALYZE FUNCTION (Username/Password Login)
@@ -476,6 +516,8 @@ if not st.session_state.logged_in:
                                 }
                                 st.session_state.logged_in = True
                                 st.session_state.login_method = method
+                                if st.session_state.save_credentials:
+                                    save_credentials_to_env(s, school, username, password)
                                 st.rerun()
                         except Exception as e:
                             pass
@@ -515,6 +557,8 @@ if not st.session_state.logged_in:
                                     }
                                     st.session_state.logged_in = True
                                     st.session_state.login_method = method
+                                    if st.session_state.save_credentials:
+                                        save_credentials_to_env(s, school, username, password)
                                     st.rerun()
                             except Exception as key_e:
                                 pass
@@ -577,6 +621,8 @@ if not st.session_state.logged_in:
                                     }
                                     st.session_state.logged_in = True
                                     st.session_state.login_method = method
+                                    if st.session_state.save_credentials:
+                                        save_credentials_to_env(srv, sch, user, key)
                                     st.rerun()
                                 else:
                                     st.error(f"Login failed")
